@@ -3,3 +3,6 @@ A repository for code availability related to the paper "Benchmarking logical th
 
 ### Requirements
 numpy, scipy, json, matplotlib
+
+### Questions and correspondence
+karl.mayer@quantinuum.com
