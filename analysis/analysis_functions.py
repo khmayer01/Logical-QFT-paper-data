@@ -8,6 +8,123 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 
+
+# Analysis functions for logical TQRB
+
+def analyze_TQRB_results(job_data):
+    
+    surv_prob = {}
+    ps_shots = {}
+    for key in job_data:
+        params = job_data[key]['parameters']
+        L = params['seq_len']
+        if 'surv_state' in params:
+            surv_state = params['surv_state']
+        else:
+            surv_state = '00'
+            
+        if L not in surv_prob:
+            surv_prob[L] = []
+            ps_shots[L] = []
+
+        # compute outcomes
+        outcomes = {}
+        if 'results' in job_data[key]['results']:
+            raw_results = job_data[key]['results']['results']['c']
+            for b_str in ['00', '01', '10', '11']:
+                if b_str in raw_results:
+                    outcomes[b_str] = raw_results.count(b_str)
+
+        # compute survival probability
+        if outcomes != {}:
+            shots = sum(outcomes.values())
+            ps_shots[L].append(shots)
+            if surv_state in outcomes:
+                p = outcomes[surv_state]/shots
+            else:
+                p = 0
+
+            surv_prob[L].append(p)
+                
+    data = {'surv_prob':surv_prob, 'ps_shots':ps_shots}
+        
+    return data
+
+
+def plot_TQRB_data(data1, data2, save=False,
+                   labels=['H1-1', 'H2-1'],
+                   colors=['b', 'g'],
+                   ylim=(0.85, 1.01)):
+
+    
+    def fit_func(x, a, f):
+        return a*f**x + 1/4
+
+    seq_len = [2, 6, 10, 14]
+    
+    x = seq_len
+    avg_surv_probs1 = {L:np.mean(data1['surv_prob'][L]) for L in x}
+    avg_surv_probs2 = {L:np.mean(data2['surv_prob'][L]) for L in x}
+    ps_shots1 = data1['ps_shots']
+    ps_shots2 = data2['ps_shots']
+    y1 = [avg_surv_probs1[L] for L in x]
+    y2 = [avg_surv_probs2[L] for L in x]
+    
+    
+    shot_var1 = [avg_surv_probs1[L]*(1-avg_surv_probs1[L])/sum(ps_shots1[L]) for L in x]
+    # compute error bar using "rule of 2" for L=2 point
+    p_adj = (999/1002)
+    shot_var1[0] = (p_adj*(1-p_adj)/1000)
+    shot_var2 = [avg_surv_probs2[L]*(1-avg_surv_probs2[L])/sum(ps_shots2[L]) for L in x]
+    
+    
+    circ_var1 = [np.std([data1['surv_prob'][L][s] for s in range(10)])**2/10 for L in x]
+    circ_var2 = [np.std([data2['surv_prob'][L][s] for s in range(10)])**2/10 for L in x]
+    
+    
+    yerr1 = [np.sqrt(shot_var1[j]+circ_var1[j]) for j in range(4)]
+    yerr2 = [np.sqrt(shot_var2[j]+circ_var2[j]) for j in range(4)]
+    
+    
+    p0 = [0.75, 0.99]
+    bounds = ([0, 0],[1, 1])
+    
+    popt1, pcov1 = curve_fit(fit_func, x, y1, p0=p0, bounds=bounds)
+    popt2, pcov2 = curve_fit(fit_func, x, y2, p0=p0, bounds=bounds)
+    
+    xfit = np.linspace(x[0], x[-1], 100)
+    yfit1 = fit_func(xfit, *popt1)
+    yfit2 = fit_func(xfit, *popt2)
+    
+    plt.errorbar(x, y1, yerr=yerr1, fmt='o', color=colors[0])
+    plt.errorbar(x, y2, yerr=yerr2, fmt='o', color=colors[1])
+    
+    plt.plot(xfit, yfit1, '-', color=colors[0], label=labels[0])
+    plt.plot(xfit, yfit2, '-', color=colors[1], label=labels[1])
+    
+    plt.xlabel('Sequence Length (number of Cliffords)', fontsize=12)
+    plt.xticks(ticks=x, labels=x, fontsize=12)
+    plt.ylabel('Survival Probability', fontsize=12)
+    plt.legend(fontsize=12)
+    plt.ylim(ylim)
+    if save == True:
+        plt.savefig('TQRB_plot.pdf', format='pdf')
+    plt.show()
+    
+    f1, f_std1 = popt1[1], np.sqrt(np.diag(pcov1))[1]
+    f2, f_std2 = popt2[1], np.sqrt(np.diag(pcov2))[1]
+    
+    # 1.78073 is the average TQ count per Clifford in the construction used
+    F_avg1 = 1 - 3*((1-f1)/1.78073)/4
+    F_avg2 = 1 - 3*((1-f2)/1.78073)/4
+    
+    F_avg_std1 = (3/4)*f_std1/1.78073
+    F_avg_std2 = (3/4)*f_std2/1.78073
+    
+    
+    print(f'H1-1 Average Fidelity = {round(F_avg1, 4)} +/- {round(F_avg_std1, 4)}')
+    print(f'H2-1 Average Fidelity = {round(F_avg2, 4)} +/- {round(F_avg_std2, 4)}')
+
 # Analysis functions for logical T benchmarking
 
 def analyze_T_results(job_data, postselect=False):
@@ -142,8 +259,6 @@ def plot_T_data(data, method=2, save=False,ylim=None,
 
 
 # Analysis functions for logical QFT 
-
-
 
 def analyze_QFT_results(job_data, method='ancilla-assisted', postselect=False):
     
