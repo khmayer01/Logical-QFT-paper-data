@@ -140,3 +140,168 @@ def plot_T_data(data, method=2, save=False,ylim=None,
         print(f'Prob of logical Z error: {round(log_err,4)} +/- {round(log_err_std,4)}')
         print(f'Average Fidelity:        {round(F_avg,4)} +/- {round(F_avg_std,4)}\n')
 
+
+# Analysis functions for logical QFT 
+
+
+
+def analyze_QFT_results(job_data, method='ancilla-assisted', postselect=False):
+    
+    data = {'comp':{'succ':{}, 'stds':{}}, 'fourier':{'succ':{}, 'stds':{}}}
+    
+    if method == 'ancilla-assisted':
+        init_str = '0000'
+    elif method == 'recursive-teleportation':
+        init_str = '000'
+    
+    for key in job_data:
+        if 'results' in job_data[key]['results']:
+            params = job_data[key]['parameters']
+            jr = job_data[key]['results']['results']
+            outcomes = {}
+            for i in range(len(jr['c'])):
+                
+                # postselect on init string
+                if jr['init'][i] == init_str:
+                    
+                    # postselect on T gadget measurements
+                    if postselect == False:
+                        b_str = jr['c'][i]
+                        if b_str in outcomes:
+                            outcomes[b_str] += 1
+                        else:
+                            outcomes[b_str] = 1
+                    
+                    elif postselect == True:
+                        syn = ''
+                        for t in range(1,14):
+                            syn = syn + jr[f'syn_measT{t}'][i]
+                            
+                        if syn.count('1') == 0:
+                            b_str = jr['c'][i]
+                            if b_str in outcomes:
+                                outcomes[b_str] += 1
+                            else:
+                                outcomes[b_str] = 1
+
+            # success probability
+            exp_out = params[1]
+            state = exp_out
+            ps_shots = sum(outcomes.values())
+            p = outcomes[exp_out]/ps_shots
+            p_std = np.sqrt(p*(1-p)/ps_shots)
+            
+            data[params[0]]['succ'][state] = p
+            data[params[0]]['stds'][state] = p_std
+            
+                
+    return data
+
+
+def plot_QFT_data(data, machine='H2-1', method='ancilla-assisted'):
+    
+    x = ['000', '001', '010', '011', '100', '101', '110', '111']
+    x1, x2 = [], []
+    y1, y2, yerr1, yerr2 = [], [], [], []
+    for state in x:
+        if state in data['comp']['succ']:
+            x1.append(state)
+            y1.append(data['comp']['succ'][state])
+        if state in data['fourier']['succ']:
+            x2.append(state)
+            y2.append(data['fourier']['succ'][state])
+        if state in data['comp']['stds']:
+            yerr1.append(data['comp']['stds'][state])
+        if state in data['fourier']['stds']:
+            yerr2.append(data['fourier']['stds'][state])
+    
+    if y1 != []:
+        f1 = np.mean(y1)
+        f_std1 = np.sqrt(sum([s**2 for s in yerr1]))/len(y1)
+    if y2 != []:
+        f2 = np.mean(y2)
+        f_std2 = np.sqrt(sum([s**2 for s in yerr2]))/len(y2)
+
+
+    #w = 0.4
+    if y1 != []:
+        plt.bar(x1, y1, yerr=yerr1, label=machine)
+        plt.xlabel('Input State', fontsize=12)
+        plt.ylabel('State Fidelity', fontsize=12)
+        plt.title(f'N=3 {method} QFT Comp Basis')
+        plt.ylim(0,1)
+        plt.legend()
+        #plt.savefig('QFT1_comp.pdf', format='pdf')
+        plt.show()
+    
+    if y2 != []:
+        plt.bar(x2, y2, yerr=yerr2, label=machine)
+        plt.xlabel('Input State', fontsize=12)
+        plt.ylabel('State Fidelity', fontsize=12)
+        plt.title(f'N=3 {method} QFT Fourier Basis')
+        plt.ylim(0,1)
+        plt.legend()
+        #plt.savefig('QFT1_four.pdf', format='pdf')
+        plt.show()
+
+
+    if y1 != []:
+        print(f'{method}, comp basis: {round(f1,3)} +/- {round(f_std1, 3)}')
+    if y2 != []:
+        print(f'{method}, four basis: {round(f2,3)} +/- {round(f_std2, 3)}')
+        
+    f_lo = (8*(f1+f2-1)+1)/9
+    f_lo_std = 8*np.sqrt(f_std1**2+f_std2**2)/9
+    
+    print(f'{method}, F_avg_lo: {round(f_lo,3)} +/- {round(f_lo_std, 3)}')
+        
+        
+def plot_QFT_comparison_data(data1, data2,
+                         labels=['', ''],
+                         colors=['blue','green'],
+                         method='ancilla-assisted',
+                         save=False):
+    
+    xlabels = ['000', '001', '010', '011', '100', '101', '110', '111']
+    y1c, y2c, y1f, y2f = [], [], [], []
+    y1c_err, y2c_err, y1f_err, y2f_err = [], [], [], []
+    for state in xlabels:
+        y1c.append(data1['comp']['succ'][state])
+        y2c.append(data2['comp']['succ'][state])
+        y1f.append(data1['fourier']['succ'][state])
+        y2f.append(data2['fourier']['succ'][state])
+        y1c_err.append(data1['comp']['stds'][state])
+        y2c_err.append(data2['comp']['stds'][state])
+        y1f_err.append(data1['fourier']['stds'][state])
+        y2f_err.append(data2['fourier']['stds'][state])
+
+
+    w = 0.4
+    
+    x = np.array(list(range(8)))
+    plt.bar(x-w/2, y1c, width=w, yerr=y1c_err, label=f'{labels[0]}', color=colors[0])
+    plt.bar(x+w/2, y2c, width=w, yerr=y2c_err, label=f'{labels[1]}', color=colors[1])
+    plt.xticks(ticks=x, labels=xlabels)
+    plt.xlabel('Input State', fontsize=12)
+    plt.ylabel('State Fidelity', fontsize=12)
+    if save == False:
+        plt.title(f'N=3 QFT {method} Comp Basis')
+    plt.ylim(0,1.1)
+    plt.legend(loc=1)
+    if save == True:
+        plt.savefig(f'QFT_{method}_comp_new.pdf', format='pdf')
+    plt.show()
+    
+    x = np.array(list(range(8)))
+    plt.bar(x-w/2, y1f, width=w, yerr=y1f_err, label=f'{labels[0]}', color=colors[0])
+    plt.bar(x+w/2, y2f, width=w, yerr=y2f_err, label=f'{labels[1]}', color=colors[1])
+    plt.xticks(ticks=x, labels=xlabels)
+    plt.xlabel('Input State', fontsize=12)
+    plt.ylabel('State Fidelity', fontsize=12)
+    if save == False:
+        plt.title(f'N=3 QFT {method} Fourier Basis')
+    plt.ylim(0,1.1)
+    plt.legend(loc=1)
+    if save == True:
+        plt.savefig(f'QFT_{method}_four_new.pdf', format='pdf')
+    plt.show()
