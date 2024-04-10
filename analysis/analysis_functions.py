@@ -420,3 +420,154 @@ def plot_QFT_comparison_data(data1, data2,
     if save == True:
         plt.savefig(f'QFT_{method}_four_new.pdf', format='pdf')
     plt.show()
+    
+    
+# Analysis functions for logical control-T
+
+def analyze_CT_results(job_data, postselect=False):
+
+    data = {}
+
+    for key in job_data:
+        if 'results' in job_data[key]['results']:
+            params = job_data[key]['parameters']
+            jr = job_data[key]['results']['results']
+            outcomes = {}
+            for i in range(len(jr['c'])):
+
+                # postselect on init
+                if jr['init'][i] == '000':
+
+                    if postselect == True:
+                        if [jr[f'syn_measT{j}'][i] for j in range(1,7)] == ['000' for j in range(6)]:
+                            b_str = jr['c'][i]
+                            if b_str in outcomes:
+                                outcomes[b_str] += 1
+                            else:
+                                outcomes[b_str] = 1
+
+                    elif postselect == False:
+                        b_str = jr['c'][i]
+                        if b_str in outcomes:
+                            outcomes[b_str] += 1
+                        else:
+                            outcomes[b_str] = 1
+
+            data[params] = outcomes
+    
+    return data
+
+
+def plot_CT_data(data, save=False):
+    
+    F1s = [data[state]['00']/sum(data[state].values()) for state in ['+0', '+1', '-0', '-1']]
+    F1_shots = [sum(data[state].values()) for state in ['+0', '+1', '-0', '-1']]
+    F1stds = [np.sqrt(p*(1-p)/F1_shots[i]) for i, p in enumerate(F1s)]
+
+    F2s = [data[state]['00']/sum(data[state].values()) for state in ['0+', '0-', '1+', '1-']]
+    F2_shots = [sum(data[state].values()) for state in ['0+', '0-', '1+', '1-']]
+    F2stds = [np.sqrt(p*(1-p)/F2_shots[i]) for i, p in enumerate(F2s)]
+
+
+    F1 = np.mean(F1s)
+    F2 = np.mean(F2s)
+
+    F1std = np.sqrt(sum([s**2 for s in F1stds]))/4
+    F2std = np.sqrt(sum([s**2 for s in F2stds]))/4
+
+    F_lo = (4*(F1+F2-1)+1)/5
+    F_lo_std = 4*np.sqrt(F1std**2+F2std**2)/5
+
+    F1, F1std, F2, F2std, F_lo, F_lo_std
+
+    x = list(data.keys())
+    y = np.array([data[state]['00']/sum(data[state].values()) for state in x])
+    y_shots = F1_shots + F2_shots
+    yerr = [np.sqrt(p*(1-p)/y_shots[i]) for i, p in enumerate(y)]
+
+    plt.bar(x, y, yerr=yerr)
+    plt.xlabel('Input State', fontsize=12)
+    plt.ylabel('State Fidelity', fontsize=12)
+    if save == False:
+        plt.title('H2-1 logical control-T test, MeasDecode')
+    plt.yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    if save == True:
+        plt.savefig('control_T_plot_new.pdf', format='pdf')
+    plt.show()
+
+    print(f'XZ basis average fidelity: {round(F1,3)} +/- {round(F1std,3)}')
+    print(f'ZX basis average fidelity: {round(F2,3)} +/- {round(F2std,3)}')
+    print(f'Avg. Fidelity lower bound: {round(F_lo, 3)} +/- {round(F_lo, 3)}')
+    
+    
+def plot_CT_comparison_data(data1, data2, machine=['H2-1', 'H2-1E'], colors=['blue', 'green'], save=False):
+    
+    F1s = [data1[state]['00']/sum(data1[state].values()) for state in ['+0', '+1', '-0', '-1']]
+    F1_shots = [sum(data1[state].values()) for state in ['+0', '+1', '-0', '-1']]
+    F1stds = [np.sqrt(p*(1-p)/F1_shots[i]) for i, p in enumerate(F1s)]
+
+    F2s = [data1[state]['00']/sum(data1[state].values()) for state in ['0+', '0-', '1+', '1-']]
+    F2_shots = [sum(data1[state].values()) for state in ['0+', '0-', '1+', '1-']]
+    F2stds = [np.sqrt(p*(1-p)/F2_shots[i]) for i, p in enumerate(F2s)]
+    
+    F3s = [data2[state]['00']/sum(data2[state].values()) for state in ['+0', '+1', '-0', '-1']]
+    F3_shots = [sum(data2[state].values()) for state in ['+0', '+1', '-0', '-1']]
+    F3stds = [np.sqrt(p*(1-p)/F3_shots[i]) for i, p in enumerate(F3s)]
+
+    F4s = [data2[state]['00']/sum(data2[state].values()) for state in ['0+', '0-', '1+', '1-']]
+    F4_shots = [sum(data2[state].values()) for state in ['0+', '0-', '1+', '1-']]
+    F4stds = [np.sqrt(p*(1-p)/F4_shots[i]) for i, p in enumerate(F4s)]
+
+
+    F1 = np.mean(F1s)
+    F2 = np.mean(F2s)
+    
+    F3 = np.mean(F3s)
+    F4 = np.mean(F4s)
+
+    F1std = np.sqrt(sum([s**2 for s in F1stds]))/4
+    F2std = np.sqrt(sum([s**2 for s in F2stds]))/4
+    
+    F3std = np.sqrt(sum([s**2 for s in F3stds]))/4
+    F4std = np.sqrt(sum([s**2 for s in F4stds]))/4
+
+    F_lo1 = (4*(F1+F2-1)+1)/5
+    F_lo_std1 = 4*np.sqrt(F1std**2+F2std**2)/5
+    
+    F_lo2 = (4*(F3+F4-1)+1)/5
+    F_lo_std2 = 4*np.sqrt(F3std**2+F4std**2)/5
+
+    #F1, F1std, F2, F2std, F_lo, F_lo_std
+
+    x = list(data1.keys())
+    y1_shots = F1_shots + F2_shots
+    y2_shots = F3_shots + F4_shots
+    y1 = np.array([data1[state]['00']/sum(data1[state].values()) for state in x])
+    y2 = np.array([data2[state]['00']/sum(data2[state].values()) for state in x])
+    y1err = [np.sqrt(p*(1-p)/y1_shots[i]) for i, p in enumerate(y1)]
+    y2err = [np.sqrt(p*(1-p)/y2_shots[i]) for i, p in enumerate(y2)]
+
+    w = 0.4
+    plt.bar(np.array(list(range(len(x))))-w/2, y1, width=w, yerr=y1err, label=machine[0], color=colors[0])
+    plt.bar(np.array(list(range(len(x))))+w/2, y2, width=w, yerr=y2err, label=machine[1], color=colors[1])
+    plt.xlabel('Input State', fontsize=12)
+    plt.ylabel('State Fidelity', fontsize=12)
+    if save == False:
+        plt.title('H2-1 logical control-T test, MeasDecode')
+    plt.yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], fontsize=12)
+    plt.xticks(ticks=list(range(len(x))), labels=x, fontsize=12)
+    plt.legend(loc=1)
+    plt.ylim(0,1.1)
+    if save == True:
+        plt.savefig('control_T_comparison_plot_new.pdf', format='pdf')
+    plt.show()
+    
+    print(machine[0])
+    print(f'XZ basis average fidelity: {round(F1,3)} +/- {round(F1std,3)}')
+    print(f'ZX basis average fidelity: {round(F2,3)} +/- {round(F2std,3)}')
+    print(f'Avg. Fidelity lower bound: {round(F_lo1, 3)} +/- {round(F_lo_std1, 3)}')
+    
+    print(machine[1])
+    print(f'XZ basis average fidelity: {round(F3,3)} +/- {round(F3std,3)}')
+    print(f'ZX basis average fidelity: {round(F4,3)} +/- {round(F4std,3)}')
+    print(f'Avg. Fidelity lower bound: {round(F_lo2, 3)} +/- {round(F_lo_std2, 3)}')
