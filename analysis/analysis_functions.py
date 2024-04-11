@@ -45,8 +45,17 @@ def analyze_TQRB_results(job_data):
                 p = 0
 
             surv_prob[L].append(p)
+            
+    # compute survival standard deviations
+    surv_stds = {2:[], 6:[], 10:[], 14:[]}
+    for L in surv_stds:
+        for i in range(10):
+            # rule of 2 for error bar for point near 100%
+            p_adj = 100*surv_prob[L][i]/102
+            std = np.sqrt(p_adj*(1-p_adj)/102)
+            surv_stds[L].append(std)    
                 
-    data = {'surv_prob':surv_prob, 'ps_shots':ps_shots}
+    data = {'surv_prob':surv_prob, 'ps_shots':ps_shots, 'surv_stds':surv_stds}
         
     return data
 
@@ -65,16 +74,17 @@ def plot_TQRB_data(data1, data2, save=False,
     x = seq_len
     avg_surv_probs1 = {L:np.mean(data1['surv_prob'][L]) for L in x}
     avg_surv_probs2 = {L:np.mean(data2['surv_prob'][L]) for L in x}
-    ps_shots1 = data1['ps_shots']
+    surv_stds1 = data1['surv_stds']
+    #ps_shots1 = data1['ps_shots']
     ps_shots2 = data2['ps_shots']
     y1 = [avg_surv_probs1[L] for L in x]
     y2 = [avg_surv_probs2[L] for L in x]
     
-    
-    shot_var1 = [avg_surv_probs1[L]*(1-avg_surv_probs1[L])/sum(ps_shots1[L]) for L in x]
+    shot_var1 = [sum([s**2 for s in surv_stds1[L]])/100 for L in x]
+    #shot_var1 = [avg_surv_probs1[L]*(1-avg_surv_probs1[L])/sum(ps_shots1[L]) for L in x]
     # compute error bar using "rule of 2" for L=2 point
-    p_adj = (999/1002)
-    shot_var1[0] = (p_adj*(1-p_adj)/1000)
+    #p_adj = (999/1002)
+    #shot_var1[0] = (p_adj*(1-p_adj)/1000)
     shot_var2 = [avg_surv_probs2[L]*(1-avg_surv_probs2[L])/sum(ps_shots2[L]) for L in x]
     
     
